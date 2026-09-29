@@ -18,6 +18,15 @@ def utc_now_iso() -> str:
 
 
 def log_event(event: str, level: str = "info", **fields) -> str:
+    record = {
+        "event": event,
+        "level": level.lower(),
+        "timestamp": utc_now_iso(),
+    }
+    record.update({key: value for key, value in fields.items() if key not in record})
+    serialized = json.dumps(record, ensure_ascii=False)
+    print(serialized, file=sys.stdout, flush=True)
+    return serialized
     """Ghi một dòng log JSON ra stdout.
 
     TODO (CP1): tạo dict gồm tối thiểu 3 khóa
@@ -34,4 +43,3 @@ def log_event(event: str, level: str = "info", **fields) -> str:
         >>> log_event("ask_completed", user_id="sv01", cost_usd=0.0001)
         '{"event": "ask_completed", "level": "info", "timestamp": "...", ...}'
     """
-    raise NotImplementedError("TODO (CP1): cài đặt log_event")
