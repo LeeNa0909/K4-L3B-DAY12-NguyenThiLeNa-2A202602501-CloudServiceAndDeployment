@@ -8,64 +8,67 @@
 | Mã học viên | 2A202602501 |
 | Repository | [K4-L3B-DAY12-NguyenThiLeNa-2A202602501-CloudServiceAndDeployment](https://github.com/LeeNa0909/K4-L3B-DAY12-NguyenThiLeNa-2A202602501-CloudServiceAndDeployment) |
 
-## Trạng thái dịch vụ
+## Nền tảng và URL
 
 | Mục | Nội dung |
 |---|---|
-| Nền tảng dự định | Railway |
-| Trạng thái Railway | Chưa deploy; CLI báo chưa có project được liên kết |
-| Public URL | Chưa có |
-| URL local | `http://localhost:8000` |
+| Platform | Railway |
+| Project / environment | `responsible-freedom` / `production` |
+| App service | `day12-agent` — Railway báo Online, deployment `SUCCESS` |
+| Redis service | `day12-redis` — Railway báo Online |
+| Public URL | [https://day12-agent-production-84d5.up.railway.app](https://day12-agent-production-84d5.up.railway.app) |
 | Ngày kiểm tra | 2026-09-29 |
 
-## Biến môi trường
+## Environment variables
 
-Các biến dưới đây hiện được cấu hình trong `.env` cục bộ. Không ghi giá trị của `AGENT_API_KEY` hoặc secret nào vào tài liệu hay repository. Chưa cấu hình biến trên Railway vì service cloud chưa được tạo.
+Các biến được cấu hình trên Railway. Chỉ ghi tên biến, không ghi giá trị secret. `PORT` được Railway cấp tự động.
 
-| Biến | Trạng thái/giá trị không nhạy cảm |
+| Biến | Trạng thái |
 |---|---|
-| `PORT` | local: `8000` |
-| `AGENT_API_KEY` | Có trong `.env` local; giá trị được giữ kín |
-| `REDIS_URL` | local: `redis://localhost:6379/0` |
-| `RATE_LIMIT_PER_MINUTE` | `10` |
-| `MONTHLY_BUDGET_USD` | `10.0` |
-| `LOG_LEVEL` | `INFO` |
-| `LOCAL_FALLBACK` | `true` |
+| `AGENT_API_KEY` | Có trên Railway; giá trị được giữ kín |
+| `REDIS_URL` | Tên biến có trên service `day12-agent` nhưng giá trị hiệu lực hiện đang rỗng; cần sửa reference tới biến Redis tồn tại |
+| `RATE_LIMIT_PER_MINUTE` | Có trên Railway |
+| `MONTHLY_BUDGET_USD` | Có trên Railway |
+| `LOG_LEVEL` | Có trên Railway |
+| `PORT` | Railway tự cấp |
+| `LOCAL_FALLBACK` | `.env` local hiện là `true`; đây không phải biến cloud |
 
-## Kiểm tra đã thực hiện
+## Kết quả kiểm tra public URL
 
-Ứng dụng Uvicorn local đang trả lời trên cổng 8000. Redis local cũng phản hồi readiness probe.
-
-Chạy `\.venv\Scripts\python.exe -m pytest tests\test_cp5.py -v` ngày 2026-09-29:
+Đã gọi trực tiếp URL Railway và chạy CP5 với `LOCAL_FALLBACK=false` ngày 2026-09-29:
 
 ```text
-8 passed, 5 skipped
+7 passed, 2 failed, 4 skipped
 ```
 
-5 test bị skip là các kiểm tra public deployment (Railway chưa deploy) và kiểm tra `/ask` có API key hợp lệ (không đặt `DEPLOY_API_KEY`). Test local fallback, `/health`, `/ready`, xác thực thiếu key và kiểm tra ảnh chụp đều pass.
+Hai test thất bại là `/ready` trả 500 và `/ask` với API key trả 500. Bốn test fallback bị skip vì đang kiểm tra public Railway; test `/ask` có key đã chạy bằng `DEPLOY_API_KEY` từ `.env` nhưng không qua được do lỗi kết nối Redis.
 
 ```text
-GET http://localhost:8000/health
+GET /health
 HTTP 200
 {"status":"ok","service":"day12-agent","version":"1.0.0"}
 
-GET http://localhost:8000/ready
-HTTP 200
-{"status":"ready","redis":true}
+GET /ready
+HTTP 500 Internal Server Error
 
-POST http://localhost:8000/ask (không gửi X-API-Key)
-HTTP 401
+POST /ask không gửi X-API-Key
+HTTP 401 Unauthorized
+
+POST /ask có X-API-Key (DEPLOY_API_KEY)
+HTTP 500 Internal Server Error
 ```
 
-Chưa xác minh được `/ask` với API key hợp lệ trong lần kiểm tra này. Docker CLI hiện báo không truy cập được Docker Engine pipe (`permission denied`), còn Railway CLI báo `No linked project found`; vì vậy không ghi nhận kết quả cloud hoặc container Compose đang chạy.
+Railway CLI báo cả `day12-agent` và `day12-redis` Online, nhưng readiness hiện **chưa đạt**. Log ứng dụng cho thấy `redis.from_url()` ném `ValueError: Redis URL must specify ... (redis://, rediss://, unix://)`. Kiểm tra tên biến không tiết lộ secret cho thấy `REDIS_URL` của app đang rỗng; service Redis hiện có biến `REDIS_URL`, không có `REDIS_PRIVATE_URL`. Cần đặt reference của app thành `${{day12-redis.REDIS_URL}}` (chọn đúng service/biến trong Railway), redeploy, rồi kiểm tra `/ready` phải trả 200 với `{"status":"ready","redis":true}`.
+
+Do đó, deployment có public URL; liveness và kiểm tra thiếu key đạt, nhưng CP5 chưa hoàn tất vì readiness và request có key đều đang lỗi 500.
 
 ## Ảnh chụp màn hình
 
-Đã có trong repository:
+- `screenshots/dashboard.png` — Railway production, service `day12-agent` và `day12-redis` Online; biến hiển thị bị che.
+- `screenshots/health.png` — JSON health response; ảnh hiện không cho thấy thanh địa chỉ nên chưa tự chứng minh URL Railway.
 
-- `screenshots/dashboard.png` — ảnh trạng thái local/fallback; chưa phải Railway dashboard.
-- `screenshots/health.png` — ảnh kết quả health local.
+Sau khi sửa `REDIS_URL`, chụp lại `/ready` và `/health` trên public URL để bổ sung bằng chứng public.
 
-## Ghi chú phương án local fallback
+## Ghi chú kiểm tra local
 
-Checkpoint hiện dùng `LOCAL_FALLBACK=true` trong `.env` và URL local để ghi nhận kết quả kiểm tra. Railway vẫn là nền tảng dự định, nhưng chưa tạo project/service/domain. Chỉ cập nhật trạng thái sang deploy cloud sau khi có public URL và đã kiểm tra `/health`, `/ready`, cùng xác thực `/ask` trên URL đó.
+Trong `.env` cục bộ, `LOCAL_FALLBACK=true`; lần chạy `pytest tests/test_cp5.py -v` gần nhất theo fallback cho kết quả `8 passed, 5 skipped`. Các test public bị skip trong lần đó vì bật fallback, nên không dùng kết quả ấy để kết luận Railway đã sẵn sàng. Khi chạy test public, đặt `LOCAL_FALLBACK=false` trong môi trường của lệnh pytest.
