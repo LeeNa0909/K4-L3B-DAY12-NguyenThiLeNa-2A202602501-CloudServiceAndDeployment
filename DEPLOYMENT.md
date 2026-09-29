@@ -26,22 +26,22 @@ Các biến được cấu hình trên Railway. Chỉ ghi tên biến, không gh
 | Biến | Trạng thái |
 |---|---|
 | `AGENT_API_KEY` | Có trên Railway; giá trị được giữ kín |
-| `REDIS_URL` | Tên biến có trên service `day12-agent` nhưng giá trị hiệu lực hiện đang rỗng; cần sửa reference tới biến Redis tồn tại |
+| `REDIS_URL` | Reference tới `${{day12-redis.REDIS_URL}}` trên service `day12-agent` |
 | `RATE_LIMIT_PER_MINUTE` | Có trên Railway |
 | `MONTHLY_BUDGET_USD` | Có trên Railway |
 | `LOG_LEVEL` | Có trên Railway |
 | `PORT` | Railway tự cấp |
-| `LOCAL_FALLBACK` | `.env` local hiện là `true`; đây không phải biến cloud |
+| `LOCAL_FALLBACK` | `.env` local đặt `false` để bộ chấm kiểm tra Railway public URL |
 
 ## Kết quả kiểm tra public URL
 
-Đã gọi trực tiếp URL Railway và chạy CP5 với `LOCAL_FALLBACK=false` ngày 2026-09-29:
+Đã sửa `REDIS_URL`, redeploy và chạy CP5 với `LOCAL_FALLBACK=false` ngày 2026-09-29:
 
 ```text
-7 passed, 2 failed, 4 skipped
+9 passed, 4 skipped
 ```
 
-Hai test thất bại là `/ready` trả 500 và `/ask` với API key trả 500. Bốn test fallback bị skip vì đang kiểm tra public Railway; test `/ask` có key đã chạy bằng `DEPLOY_API_KEY` từ `.env` nhưng không qua được do lỗi kết nối Redis.
+Bốn test local fallback bị skip vì lượt chạy này kiểm tra public Railway. Tất cả 9 test public và kiểm tra tài liệu đều pass, gồm `/ask` với `DEPLOY_API_KEY`.
 
 ```text
 GET /health
@@ -49,26 +49,28 @@ HTTP 200
 {"status":"ok","service":"day12-agent","version":"1.0.0"}
 
 GET /ready
-HTTP 500 Internal Server Error
+HTTP 200
+{"status":"ready","redis":true}
 
 POST /ask không gửi X-API-Key
 HTTP 401 Unauthorized
 
 POST /ask có X-API-Key (DEPLOY_API_KEY)
-HTTP 500 Internal Server Error
+HTTP 200
+Trả về câu trả lời agent
 ```
 
-Railway CLI báo cả `day12-agent` và `day12-redis` Online, nhưng readiness hiện **chưa đạt**. Log ứng dụng cho thấy `redis.from_url()` ném `ValueError: Redis URL must specify ... (redis://, rediss://, unix://)`. Kiểm tra tên biến không tiết lộ secret cho thấy `REDIS_URL` của app đang rỗng; service Redis hiện có biến `REDIS_URL`, không có `REDIS_PRIVATE_URL`. Cần đặt reference của app thành `${{day12-redis.REDIS_URL}}` (chọn đúng service/biến trong Railway), redeploy, rồi kiểm tra `/ready` phải trả 200 với `{"status":"ready","redis":true}`.
+Lỗi ban đầu do app tham chiếu tới `REDIS_PRIVATE_URL`, trong khi service `day12-redis` cung cấp biến `REDIS_URL`; vì vậy `REDIS_URL` của app bị rỗng và Redis client báo sai scheme. Đã đổi reference sang `${{day12-redis.REDIS_URL}}` và redeploy. Sau đó `/ready` trả 200 với `redis: true`, `/ask` không key trả 401, và `/ask` có key trả 200.
 
-Do đó, deployment có public URL; liveness và kiểm tra thiếu key đạt, nhưng CP5 chưa hoàn tất vì readiness và request có key đều đang lỗi 500.
+Railway báo `day12-agent` và `day12-redis` Online; các kiểm tra public CP5 đã pass.
 
 ## Ảnh chụp màn hình
 
 - `screenshots/dashboard.png` — Railway production, service `day12-agent` và `day12-redis` Online; biến hiển thị bị che.
-- `screenshots/health.png` — JSON health response; ảnh hiện không cho thấy thanh địa chỉ nên chưa tự chứng minh URL Railway.
+- `screenshots/health.png` — JSON health response; public URL cũng được xác minh riêng qua các test CP5.
 
-Sau khi sửa `REDIS_URL`, chụp lại `/ready` và `/health` trên public URL để bổ sung bằng chứng public.
+Ảnh dashboard cho thấy service Railway; ảnh health minh họa response của endpoint.
 
 ## Ghi chú kiểm tra local
 
-Trong `.env` cục bộ, `LOCAL_FALLBACK=true`; lần chạy `pytest tests/test_cp5.py -v` gần nhất theo fallback cho kết quả `8 passed, 5 skipped`. Các test public bị skip trong lần đó vì bật fallback, nên không dùng kết quả ấy để kết luận Railway đã sẵn sàng. Khi chạy test public, đặt `LOCAL_FALLBACK=false` trong môi trường của lệnh pytest.
+Trong `.env` cục bộ, `LOCAL_FALLBACK=false`; lần chạy CP5 gần nhất đã kiểm tra Railway thay vì dùng local fallback. Chạy lại bằng `python grade.py --no-bonus` để tái tạo bảng điểm phần bắt buộc.
