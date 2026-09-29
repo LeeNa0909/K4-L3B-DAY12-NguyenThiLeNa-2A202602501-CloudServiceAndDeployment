@@ -1,101 +1,64 @@
 # Thông Tin Deploy — Checkpoint 5
 
-> Điền file này sau khi deploy xong. `pytest tests/test_cp5.py` đọc file này
-> để tìm địa chỉ service của bạn và gọi thử.
->
-> **Chỉ ghi TÊN biến môi trường, tuyệt đối không dán giá trị API key vào đây.**
-> Repo này công khai — dán khóa vào là mất khóa.
-
 ## Thông Tin Học Viên
 
 | Mục | Nội dung |
 |-----|----------|
-| Họ và tên | (điền họ tên) |
-| Mã học viên | (điền mã học viên) |
-| Repo | (điền link repo K4-L3B-DAY12-HoVaTen-MSSV-CloudServicesAndDeployment) |
+| Họ và tên | Nguyễn Thị Lê Na |
+| Mã học viên | 2A202602501 |
+| Repo | Local workspace; chưa cung cấp URL GitHub công khai |
 
 ## Service
 
 | Mục | Nội dung |
 |-----|----------|
-| Public URL | https://TODO-thay-bang-url-that.up.railway.app |
-| Platform | Railway / Render / Cloud Run — (điền platform bạn dùng) |
-| Ngày deploy | (điền ngày) |
+| Public URL | http://localhost:8000 (local fallback) |
+| Platform | Render configuration; local fallback |
+| Ngày kiểm tra | 2026-09-29 |
 
-## Biến Môi Trường Đã Set Trên Cloud
+## Biến Môi Trường Đã Set
 
-Ghi tên biến và **nguồn giá trị**, không ghi giá trị:
+Đã cấu hình trong file `.env` cục bộ. Không ghi giá trị secret vào tài liệu.
 
-| Biến | Đã set | Ghi chú |
-|------|--------|---------|
-| `PORT` | ✅ | platform tự gán |
-| `AGENT_API_KEY` | ✅ | đặt trong dashboard, không nằm trong repo |
-| `REDIS_URL` | ✅ | (điền: Redis add-on của platform / Upstash / ...) |
-| `RATE_LIMIT_PER_MINUTE` | ✅ | 10 |
-| `MONTHLY_BUDGET_USD` | ✅ | 10.0 |
-| `LOG_LEVEL` | ✅ | INFO |
+| Biến | Nguồn giá trị |
+|------|---------------|
+| `PORT` | local `.env`, giá trị 8000 |
+| `AGENT_API_KEY` | local `.env`, không công khai giá trị |
+| `REDIS_URL` | Redis Docker local |
+| `RATE_LIMIT_PER_MINUTE` | local `.env`, giá trị 10 |
+| `MONTHLY_BUDGET_USD` | local `.env`, giá trị 10.0 |
+| `LOG_LEVEL` | local `.env`, giá trị INFO |
+| `LOCAL_FALLBACK` | bật để kiểm tra CP5 local |
 
-## Lệnh Kiểm Tra
+## Kết Quả Kiểm Tra Thực Tế
 
-Thay `<URL>` bằng Public URL ở trên:
+Service local chạy bằng Uvicorn, Redis chạy trong Docker:
 
-```bash
-# 1. Liveness — mong đợi 200 {"status":"ok"}
-curl -i <URL>/health
-
-# 2. Readiness — mong đợi 200 {"status":"ready"} (đã nối được Redis)
-curl -i <URL>/ready
-
-# 3. Không có API key — mong đợi 401
-curl -i -X POST <URL>/ask \
-  -H "Content-Type: application/json" \
-  -d '{"question":"Hello"}'
-
-# 4. Có API key — mong đợi 200 kèm câu trả lời
-curl -i -X POST <URL>/ask \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: $AGENT_API_KEY" \
-  -H "X-User-Id: sv-test" \
-  -d '{"question":"Deploy là gì?"}'
-
-# 5. Rate limit — gọi 15 lần, những lần cuối phải trả 429
-for i in $(seq 1 15); do
-  curl -s -o /dev/null -w "%{http_code} " -X POST <URL>/ask \
-    -H "Content-Type: application/json" \
-    -H "X-API-Key: $AGENT_API_KEY" \
-    -H "X-User-Id: sv-test" \
-    -d '{"question":"test"}'
-done; echo
+```text
+health 200
+ready 200
+ask_without_key 401
+ask_with_key 200
 ```
 
-## Kết Quả Chạy Thật
+Các endpoint đã xác nhận:
 
-Dán output của các lệnh trên vào đây:
-
-```
-(điền output)
+```text
+GET  http://localhost:8000/health → 200 {"status":"ok"}
+GET  http://localhost:8000/ready  → 200 {"status":"ready","redis":true}
+POST http://localhost:8000/ask không có API key → 401
+POST http://localhost:8000/ask có API key → 200
 ```
 
 ## Ảnh Chụp Màn Hình
 
-Đặt ảnh trong thư mục `screenshots/`:
+Ảnh cần bổ sung thủ công vào thư mục `screenshots/`:
 
-- `screenshots/dashboard.png` — trang quản lý service trên platform
-- `screenshots/health.png` — kết quả gọi `/health` từ trình duyệt hoặc curl
+- `screenshots/dashboard.png` — trạng thái Docker/Redis hoặc dashboard deploy.
+- `screenshots/health.png` — kết quả gọi `/health`.
 
----
+## Phương Án Dự Phòng
 
-## Nếu Dùng Phương Án Dự Phòng
-
-Không đăng ký được tài khoản cloud? Vẫn nộp được bài, nhưng CP5 tối đa 60% điểm:
-
-1. Đặt `LOCAL_FALLBACK=true` trong `.env`
-2. Chạy `docker compose up -d` rồi kiểm tra `docker compose ps`
-3. Chụp màn hình vào `screenshots/`
-4. Chạy `pytest tests/test_cp5.py -v` — bộ test sẽ tự chuyển sang kiểm tra
-   `http://localhost:8000`
-5. Ghi rõ lý do không deploy được vào phần dưới đây:
-
-```
-(điền lý do nếu dùng phương án dự phòng, ngược lại xóa mục này)
-```
+Chưa deploy cloud do chưa có tài khoản/repository public được kết nối. Đã dùng
+local fallback theo hướng dẫn: `LOCAL_FALLBACK=true`, Redis Docker và Uvicorn
+local. Cấu hình Render vẫn được giữ trong `render.yaml` để deploy sau.
