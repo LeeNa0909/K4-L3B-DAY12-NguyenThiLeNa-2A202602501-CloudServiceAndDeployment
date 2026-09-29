@@ -3,7 +3,7 @@
 > **Bài làm cá nhân.** Trả lời bằng lời của chính bạn, dựa trên những gì bạn
 > quan sát được khi chạy code — không sao chép đáp án của người khác.
 >
-> Cách trả lời: thay dòng `> *Câu trả lời của bạn*` bằng câu trả lời.
+> Cách trả lời: thay dòng giữ chỗ dưới mỗi câu bằng câu trả lời của bạn.
 > `grade.py` đếm số câu đã trả lời (15 điểm cho 10 câu).
 >
 > Họ và tên: Nguyễn Thị Lê Na  Mã học viên: 2A202602501
@@ -122,4 +122,4 @@ Ghi lại **một** lỗi bạn gặp khi deploy lên cloud (build fail, health 
 timeout, sai REDIS_URL, app không đọc `$PORT`...): thông báo lỗi là gì, bạn
 tìm ra nguyên nhân bằng cách nào, và sửa ra sao?
 
-> Mình chưa deploy lên cloud nên chưa có lỗi build/health check của Railway để mô tả. Khi kiểm tra local, `docker compose ps` báo không có quyền kết nối Docker API qua `npipe:////./pipe/docker_engine` (`permission denied`). Mình đối chiếu với `curl http://localhost:8000/health`: Uvicorn local vẫn trả 200, nên kết quả đó chỉ xác nhận process local, không chứng minh Compose hay Railway đã chạy. Railway CLI cũng báo chưa có project được liên kết; cần bật/quyền truy cập Docker và hoàn tất cấu hình Railway rồi mới ghi nhận lỗi deploy thực tế.
+> Railway đã deploy `day12-agent` và `day12-redis` ở trạng thái Online. Lỗi mình gặp là `GET /ready` trả 500; log ghi `ValueError: Redis URL must specify ... (redis://, rediss://, unix://)`. `/health` vẫn trả 200 và `/ask` thiếu key trả 401, nhưng `/ask` có key trả 500. Mình kiểm tra tên biến trên Railway mà không in secret: `REDIS_URL` của app đang rỗng; service Redis có `REDIS_URL`, không có `REDIS_PRIVATE_URL`. Cách sửa là đặt reference `REDIS_URL=${{day12-redis.REDIS_URL}}` trong Variables của `day12-agent`, redeploy rồi xác nhận `/ready` trả 200. Mình chưa áp dụng thay đổi đó nên readiness vẫn đang lỗi.
